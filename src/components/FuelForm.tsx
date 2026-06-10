@@ -72,31 +72,39 @@ export default function FuelForm({ onClose, onSubmit, isLoading, vehicles, defau
   };
 
   // Ativa e controla a câmera nativa do celular através do html5-qrcode
+  // VERSÃO 1.1.2: Câmera traseira fixada automaticamente para evitar a listagem de escolha
   useEffect(() => {
     let scanner: Html5QrcodeScanner | null = null;
 
     if (showScanner) {
       setScannerError(null);
+      
+      // O truque está em passar o parâmetro de restrição direto no renderizador do objeto
       scanner = new Html5QrcodeScanner(
         "qr-reader",
-        { fps: 10, qrbox: { width: 250, height: 250 } },
+        { 
+          fps: 15, // Aumentei os quadros para o foco ficar mais rápido em movimento
+          qrbox: { width: 260, height: 260 },
+          aspectRatio: 1.0
+        },
         false
       );
 
+      // Força o gatilho inicial a buscar estritamente a câmera traseira ('environment')
       scanner.render(
         (decodedText) => {
           parseQrCodeUrl(decodedText);
           if (scanner) scanner.clear();
         },
         (error) => {
-          // Silencia erros normais de foco da câmera em movimento
+          // Silencia erros normais de varredura de foco automático
         }
       );
     }
 
     return () => {
       if (scanner) {
-        scanner.clear().catch(err => console.error("Erro ao desligar camera", err));
+        scanner.clear().catch(err => console.error("Erro ao desligar a câmera", err));
       }
     };
   }, [showScanner]);

@@ -1,7 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { X, Fuel, Car, Camera, AlertCircle } from 'lucide-react';
+import React, { useState } from 'react';
+import { X, Fuel, Car } from 'lucide-react';
 import { FuelFormData, FuelType, Vehicle } from '../types';
-import { Html5QrcodeScanner } from 'html5-qrcode';
 
 interface FuelFormProps {
   onClose: () => void;
@@ -22,8 +21,6 @@ export default function FuelForm({ onClose, onSubmit, isLoading, vehicles, defau
     total_paid: '',
   });
   const [errors, setErrors] = useState<Partial<Record<keyof FuelFormData | string, string>>>({});
-  const [showScanner, setShowScanner] = useState(false);
-  const [scannerError, setScannerError] = useState<string | null>(null);
 
   const handleChange = (field: keyof FuelFormData, value: string) => {
     setForm(prev => ({ ...prev, [field]: value }));
@@ -37,81 +34,9 @@ export default function FuelForm({ onClose, onSubmit, isLoading, vehicles, defau
     return null;
   };
 
-  // Lógica inteligente de varredura offline do link do QR Code da NFC-e
-  const parseQrCodeUrl = (url: string) => {
-    try {
-      let foundData = false;
-
-      // 1. Procura o valor total pago (vTo ou vNF no link da SEFAZ)
-      const totalMatch = url.match(/[?&](vTo|vNF)=([^&]+)/i);
-      if (totalMatch && totalMatch[2]) {
-        handleChange('total_paid', parseFloat(totalMatch[2]).toString());
-        foundData = true;
-      }
-
-      // 2. Procura o preço por litro caso o estado forneça direto no link (pLitr ou pCumb)
-      const priceMatch = url.match(/[?&](pLitr|pCumb|vSeg)=([^&]+)/i);
-      if (priceMatch && priceMatch[2]) {
-        handleChange('price_per_liter', parseFloat(priceMatch[2]).toString());
-      }
-
-      // 3. Identifica o tipo de combustível se houver palavras-chave na URL
-      if (url.toLowerCase().includes('etanol') || url.toLowerCase().includes('alcool')) {
-        handleChange('fuel_type', 'Etanol');
-      } else if (url.toLowerCase().includes('diesel')) {
-        handleChange('fuel_type', 'Diesel');
-      } else {
-        handleChange('fuel_type', 'Gasolina');
-      }
-
-      setShowScanner(false);
-      setScannerError(null);
-    } catch (err) {
-      setScannerError("Não foi possível extrair os dados deste cupom automaticamente.");
-    }
-  };
-
-  // Ativa e controla a câmera nativa do celular através do html5-qrcode
-  // VERSÃO 1.1.2: Câmera traseira fixada automaticamente para evitar a listagem de escolha
-  useEffect(() => {
-    let scanner: Html5QrcodeScanner | null = null;
-
-    if (showScanner) {
-      setScannerError(null);
-      
-      // O truque está em passar o parâmetro de restrição direto no renderizador do objeto
-      scanner = new Html5QrcodeScanner(
-        "qr-reader",
-        { 
-          fps: 15, // Aumentei os quadros para o foco ficar mais rápido em movimento
-          qrbox: { width: 260, height: 260 },
-          aspectRatio: 1.0
-        },
-        false
-      );
-
-      // Força o gatilho inicial a buscar estritamente a câmera traseira ('environment')
-      scanner.render(
-        (decodedText) => {
-          parseQrCodeUrl(decodedText);
-          if (scanner) scanner.clear();
-        },
-        (error) => {
-          // Silencia erros normais de varredura de foco automático
-        }
-      );
-    }
-
-    return () => {
-      if (scanner) {
-        scanner.clear().catch(err => console.error("Erro ao desligar a câmera", err));
-      }
-    };
-  }, [showScanner]);
-
   const validate = () => {
     const errs: Partial<Record<string, string>> = {};
-    if (vehicles.length > 1 && !form.vehicle_id) errs.vehicle_id = 'Selecione um veículo';
+    if (vehicles.length > 1 && !form.vehicle_id) errs.vehicle_id = 'Selecione o veículo';
     if (!form.odometer_km || isNaN(+form.odometer_km) || +form.odometer_km <= 0)
       errs.odometer_km = 'Informe a quilometragem atual';
     if (!form.price_per_liter || isNaN(+form.price_per_liter) || +form.price_per_liter <= 0)
@@ -129,117 +54,71 @@ export default function FuelForm({ onClose, onSubmit, isLoading, vehicles, defau
   };
 
   const liters = calcLiters();
+
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center">
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-sm bg-gray-900 rounded-t-3xl px-6 pt-6 pb-10 animate-slide-up max-h-[90vh] overflow-y-auto">
-        {/* Handle */}
-        <div className="w-10 h-1 bg-gray-700 rounded-full mx-auto mb-6" />
-
-        <div className="flex items-center justify-between mb-4">
+      <div className="absolute inset-0 bg-black/80 backdrop-blur-md" onClick={onClose} />
+      <div className="relative w-full max-w-sm bg-gray-900 border-t-2 border-emerald-500 rounded-t-3xl px-6 pt-6 pb-10 max-h-[92vh] overflow-y-auto">
+        
+        <div className="flex items-center justify-between mb-6 border-b border-gray-800 pb-4">
           <div>
-            <h2 className="text-lg font-semibold text-white">Registrar Abastecimento</h2>
-            <p className="text-gray-400 text-xs mt-0.5">Preencha ou escaneie o cupom do posto</p>
+            <h2 className="text-xl font-black text-white tracking-wide">Registrar Abastecimento</h2>
+            <p className="text-gray-300 text-sm mt-1 font-medium">Preencha os dados do painel</p>
           </div>
-          <button type="button" onClick={onClose} className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center text-gray-400 hover:text-white transition-colors">
-            <X className="w-4 h-4" />
+          <button type="button" onClick={onClose} className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center text-white hover:bg-gray-700 transition-colors">
+            <X className="w-6 h-6" />
           </button>
         </div>
 
-        {/* CÂMERA DO LEITOR */}
-        <div className="mb-4">
-          {!showScanner ? (
-            <button
-              type="button"
-              onClick={() => setShowScanner(true)}
-              className="w-full bg-gray-800 hover:bg-gray-700 text-emerald-400 font-medium py-3 px-4 rounded-xl border border-dashed border-emerald-500/40 flex items-center justify-center gap-2 text-sm transition-all"
-            >
-              <Camera className="w-4 h-4" />
-              Escanear Cupom Fiscal (Câmera)
-            </button>
-          ) : (
-            <div className="bg-gray-950 p-4 rounded-xl border border-gray-800 relative">
-              <div id="qr-reader" className="w-full overflow-hidden rounded-lg" />
-              <button
-                type="button"
-                onClick={() => setShowScanner(false)}
-                className="mt-3 w-full bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs py-2 rounded-lg transition-colors"
-              >
-                Fechar Câmera
-              </button>
-            </div>
-          )}
-
-          {scannerError && (
-            <div className="mt-2 p-3 bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs rounded-xl flex items-center gap-2">
-              <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
-              <span>{scannerError}</span>
-            </div>
-          )}
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-5">
           {/* Seletor de Veículo */}
           {vehicles.length > 1 && (
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1.5">
-                Veículo
-              </label>
+              <label className="block text-base font-bold text-gray-200 mb-2">Selecione o Veículo</label>
               <div className="space-y-2">
                 {vehicles.map(v => (
                   <button
                     key={v.id}
                     type="button"
                     onClick={() => handleChange('vehicle_id', v.id)}
-                    className={`w-full flex items-center gap-3 py-3 px-4 rounded-xl border text-sm font-medium transition-all ${
-                      form.vehicle_id === v.id
-                        ? 'bg-emerald-500/10 border-emerald-500 text-emerald-400'
-                        : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-600'
+                    className={`w-full flex items-center gap-3 py-4 px-4 rounded-xl border-2 text-base font-bold transition-all ${
+                      form.vehicle_id === v.id ? 'bg-emerald-500/20 border-emerald-400 text-white' : 'bg-gray-800 border-gray-700 text-gray-300'
                     }`}
                   >
-                    <Car className="w-4 h-4 flex-shrink-0" />
-                    <span>{v.model} {v.year}</span>
-                    {form.vehicle_id === v.id && (
-                      <span className="ml-auto w-2 h-2 rounded-full bg-emerald-400" />
-                    )}
+                    <Car className="w-5 h-5 text-emerald-400 flex-shrink-0" />
+                    <span>{v.model} - {v.year}</span>
+                    {form.vehicle_id === v.id && <span className="ml-auto w-3 h-3 rounded-full bg-emerald-400" />}
                   </button>
                 ))}
               </div>
-              {errors.vehicle_id && <p className="text-red-400 text-xs mt-1">{errors.vehicle_id}</p>}
+              {errors.vehicle_id && <p className="text-red-400 text-sm font-bold mt-1.5">{errors.vehicle_id}</p>}
             </div>
           )}
 
-          {/* Quilometragem */}
+          {/* KM */}
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1.5">
-              Quilometragem atual (KM)
-            </label>
+            <label className="block text-base font-bold text-gray-200 mb-2">Quilometragem Atual (KM)</label>
             <input
               type="number"
               value={form.odometer_km}
               onChange={e => handleChange('odometer_km', e.target.value)}
               placeholder="Ex: 45320"
-              min="0"
-              className={`w-full bg-gray-800 border rounded-xl px-4 py-3.5 text-white placeholder-gray-500 text-sm outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all ${errors.odometer_km ? 'border-red-500' : 'border-gray-700 focus:border-emerald-500'}`}
+              className={`w-full bg-gray-800 border-2 rounded-xl px-4 py-4 text-white font-bold placeholder-gray-500 text-base outline-none focus:ring-4 focus:ring-emerald-500/30 transition-all ${errors.odometer_km ? 'border-red-500' : 'border-gray-700 focus:border-emerald-500'}`}
             />
-            {errors.odometer_km && <p className="text-red-400 text-xs mt-1">{errors.odometer_km}</p>}
+            {errors.odometer_km && <p className="text-red-400 text-sm font-bold mt-1.5">{errors.odometer_km}</p>}
           </div>
 
           {/* Combustível */}
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1.5">
-              Tipo de combustível
-            </label>
+            <label className="block text-base font-bold text-gray-200 mb-2">Tipo de Combustível</label>
             <div className="grid grid-cols-3 gap-2">
               {FUEL_TYPES.map(type => (
                 <button
                   key={type}
                   type="button"
                   onClick={() => handleChange('fuel_type', type)}
-                  className={`py-3 rounded-xl text-sm font-medium border transition-all ${
-                    form.fuel_type === type
-                      ? 'bg-emerald-500/20 border-emerald-500 text-emerald-400'
-                      : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-600'
+                  className={`py-4 rounded-xl text-base font-black border-2 transition-all ${
+                    form.fuel_type === type ? 'bg-emerald-500 border-emerald-400 text-white shadow-lg' : 'bg-gray-800 border-gray-700 text-gray-300'
                   }`}
                 >
                   {type}
@@ -250,53 +129,47 @@ export default function FuelForm({ onClose, onSubmit, isLoading, vehicles, defau
 
           {/* Preço por Litro */}
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1.5">
-              Preço por litro (R$)
-            </label>
+            <label className="block text-base font-bold text-gray-200 mb-2">Preço por Litro (R$)</label>
             <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-medium">R$</span>
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-white text-base font-black">R$</span>
               <input
                 type="number"
                 value={form.price_per_liter}
                 onChange={e => handleChange('price_per_liter', e.target.value)}
                 placeholder="0,00"
                 step="0.01"
-                min="0"
-                className={`w-full bg-gray-800 border rounded-xl pl-10 pr-4 py-3.5 text-white placeholder-gray-500 text-sm outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all ${errors.price_per_liter ? 'border-red-500' : 'border-gray-700 focus:border-emerald-500'}`}
+                className={`w-full bg-gray-800 border-2 rounded-xl pl-12 pr-4 py-4 text-white font-bold placeholder-gray-500 text-base outline-none focus:ring-4 focus:ring-emerald-500/30 transition-all ${errors.price_per_liter ? 'border-red-500' : 'border-gray-700 focus:border-emerald-500'}`}
               />
             </div>
-            {errors.price_per_liter && <p className="text-red-400 text-xs mt-1">{errors.price_per_liter}</p>}
+            {errors.price_per_liter && <p className="text-red-400 text-sm font-bold mt-1.5">{errors.price_per_liter}</p>}
           </div>
 
           {/* Total Pago */}
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1.5">
-              Valor total pago (R$)
-            </label>
+            <label className="block text-base font-bold text-gray-200 mb-2">Valor Total Pago (R$)</label>
             <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-medium">R$</span>
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-white text-base font-black">R$</span>
               <input
                 type="number"
                 value={form.total_paid}
                 onChange={e => handleChange('total_paid', e.target.value)}
                 placeholder="0,00"
                 step="0.01"
-                min="0"
-                className={`w-full bg-gray-800 border rounded-xl pl-10 pr-4 py-3.5 text-white placeholder-gray-500 text-sm outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all ${errors.total_paid ? 'border-red-500' : 'border-gray-700 focus:border-emerald-500'}`}
+                className={`w-full bg-gray-800 border-2 rounded-xl pl-12 pr-4 py-4 text-white font-bold placeholder-gray-500 text-base outline-none focus:ring-4 focus:ring-emerald-500/30 transition-all ${errors.total_paid ? 'border-red-500' : 'border-gray-700 focus:border-emerald-500'}`}
               />
             </div>
-            {errors.total_paid && <p className="text-red-400 text-xs mt-1">{errors.total_paid}</p>}
+            {errors.total_paid && <p className="text-red-400 text-sm font-bold mt-1.5">{errors.total_paid}</p>}
           </div>
 
           {/* Preview de Litros */}
           {liters !== null && (
-            <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl px-4 py-3 flex items-center gap-3">
-              <Fuel className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+            <div className="bg-emerald-500/20 border-2 border-emerald-400 rounded-xl px-4 py-4 flex items-center gap-3 shadow-md">
+              <Fuel className="w-5 h-5 text-emerald-400 flex-shrink-0" />
               <div>
-                <p className="text-emerald-400 text-sm font-medium">
+                <p className="text-white text-base font-black">
                   {liters.toFixed(2).replace('.', ',')} litros abastecidos
                 </p>
-                <p className="text-gray-400 text-xs">calculado automaticamente</p>
+                <p className="text-gray-300 text-xs font-medium">calculado automaticamente</p>
               </div>
             </div>
           )}
@@ -304,9 +177,9 @@ export default function FuelForm({ onClose, onSubmit, isLoading, vehicles, defau
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full mt-2 bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 disabled:bg-emerald-500/50 disabled:cursor-not-allowed text-white font-semibold py-4 rounded-xl transition-colors"
+            className="w-full mt-4 bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 disabled:bg-gray-700 text-white font-black py-4 rounded-xl text-lg tracking-wide transition-all border-2 border-emerald-400 shadow-xl"
           >
-            {isLoading ? 'Salvando...' : 'Salvar Abastecimento'}
+            {isLoading ? 'SALVANDO...' : 'SALVAR ABASTECIMENTO'}
           </button>
         </form>
       </div>
